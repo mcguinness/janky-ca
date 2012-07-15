@@ -1,1 +1,1 @@
-start "CRL Web Server" "C:\Program Files (x86)\IIS Express\iisexpress.exe" /path:%CD%\crl /port:19840
+start "CRL Web Server" /wait "C:\Program Files (x86)\IIS Express\iisexpress.exe" /path:%CD% /port:19840
