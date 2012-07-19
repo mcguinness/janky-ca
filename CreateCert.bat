@@ -31,10 +31,6 @@ if [%AuthType%] EQU [Invalid] (
 	echo.
 )
 
-choice /C YN /M "Add CRL Distribution Point Extension: [Y] Yes [N] No"
-if errorlevel 2 (set ExtensionName=%ExtensionName%_no_crl)
-echo.
-
 echo Enter the Simple Name for the Certificate Subject
 set /P CommonName=CN: 
 
@@ -43,10 +39,6 @@ if [%CommonName%] EQU [] (
 	echo.
 	goto :EOF
 )
-
-REM Required to be set to default value by OpenSSL Config File
-set DnsName=localhost
-set UserPrincipalName=%CommonName%
 
 if [%ExtensionName%] EQU [client_auth_extensions] (
 	set UserPrincipalName=%CommonName%
@@ -106,6 +98,12 @@ if [%ExtensionName%] EQU [all_extensions] (
 		goto :EOF
 	)
 )
+
+choice /C YN /M "Add CRL Distribution Point Extension: [Y] Yes [N] No"
+if errorlevel 2 (set ExtensionName=%ExtensionName%_no_crl)
+echo.
+
+
 REM The format of the date is YYMMDDHHMMSSZ (the same as an ASN1 UTCTime structure).
 set ExpiredStartTime=110101010000Z
 set ExpiredEndTime=120101010000Z
