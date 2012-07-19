@@ -31,6 +31,10 @@ if [%AuthType%] EQU [Invalid] (
 	echo.
 )
 
+choice /C YN /M "Add CRL Distribution Point Extension: [Y] Yes [N] No"
+if errorlevel 2 (set ExtensionName=%ExtensionName%_no_crl)
+echo.
+
 echo Enter the Simple Name for the Certificate Subject
 set /P CommonName=CN: 
 

@@ -48,7 +48,10 @@ if [%AuthorityType%] EQU [Root] (
 	set ExtensionName=ca_extensions
 )
 if [%AuthorityType%] EQU [Intermediate] (
-	set ExtensionName=intermediate_extensions
+  choice /C YN /M "Add CRL Distribution Point Extension: [Y] Yes [N] No"
+  if errorlevel 1 (set ExtensionName=intermediate_extensions)
+  if errorlevel 2 (set ExtensionName=intermediate_extensions_no_crl)
+  echo.
 )
 
 set RootAuthorityPemCertificate=certs\Root_CA.pem
