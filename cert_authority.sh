@@ -25,7 +25,7 @@ POLICY_SECTION_NAME="policy_anything"
 
 # Required to be set to default value by OpenSSL Config File (Override)
 export CSR_COMMON_NAME="localhost"
-export CSR_DNS_NAME="localhost"
+export CSR_SUBJECT_ALT_NAME="localhost"
 export CSR_USER_PRINCIPAL_NAME="user@example.com"
 
 # These URLs will be stamped into issued certs and must be reachable by clients for revocation checking
@@ -254,7 +254,7 @@ select_cert_template() {
 			select opt in "Simple Subject Name" "DNS Subject Alternative Name"; do 
 			    case "$REPLY" in
 				    1 ) extension_name="server_auth_extensions"; break;;
-				    2 ) extension_name="server_auth_dns_extensions"; break;;
+					2 ) extension_name="server_auth_san_extensions"; break;;
 				    *) echo "Invalid extension. Select a valid extension.";continue;;
 			    esac
 			done
@@ -278,51 +278,55 @@ create_cert() {
 			while read -e simple_name && [[ -z "$simple_name" ]]; do :; done
 			CSR_COMMON_NAME="$simple_name"
 			CSR_USER_PRINCIPAL_NAME="$CSR_COMMON_NAME"
-			CSR_DNS_NAME="N/A"
+			CSR_SUBJECT_ALT_NAME="N/A"
 			;;
 		client_auth_email_extensions)
 			echo "Enter the [Email Address] for the client certificate: "
 			while read -e email && [ -z "$email" ]; do :; done
 			CSR_COMMON_NAME="$email"
-			CSR_USER_PRINCIPAL_NAME="Email:${email}"
-			CSR_DNS_NAME="N/A"
+			CSR_USER_PRINCIPAL_NAME="$email"
+			CSR_SUBJECT_ALT_NAME="N/A"
 			;;
 		client_auth_smartcard_extensions)
 			echo "Enter the [User Principal Name] for the client certificate: "
 			while read -e upn && [ -z "$upn" ]; do :; done
 			CSR_COMMON_NAME="$upn"
-			CSR_USER_PRINCIPAL_NAME="Principal Name:${upn}"
-			CSR_DNS_NAME="N/A"
+			CSR_USER_PRINCIPAL_NAME="$upn"
+			CSR_SUBJECT_ALT_NAME="N/A"
 			;;
 		client_auth_all_extensions)
 			echo "Enter the [User Principal Name/Email] for the client certificate: "
 			while read -e upn && [ -z "$upn" ]; do :; done
 			CSR_COMMON_NAME="$upn"
-			CSR_USER_PRINCIPAL_NAME="Principal Name/Email:${upn}"
-			CSR_DNS_NAME="N/A"
+			CSR_USER_PRINCIPAL_NAME="$upn"
+			CSR_SUBJECT_ALT_NAME="N/A"
 			break;;
 		server_auth_extensions)
 			echo "Enter the [Simple Name] for the server certificate subject: "
 			while read -e simple_name && [[ -z "$simple_name" ]]; do :; done
 			CSR_COMMON_NAME="$simple_name"
 			CSR_USER_PRINCIPAL_NAME="N/A"
-			CSR_DNS_NAME="$simple_name"
+			CSR_SUBJECT_ALT_NAME="$simple_name"
 			;;
-		server_auth_dns_extensions)
-			echo "Enter the [DNS Subject Alternative Name] for the server certificate: "
-			while read -e dns && [ -z "$dns" ]; do :; done
-			CSR_COMMON_NAME="$dns"
+		server_auth_san_extensions)
+			echo "Enter the [Simple Name] for the server certificate subject: "
+			while read -e simple_name && [[ -z "$simple_name" ]]; do :; done
+			CSR_COMMON_NAME="$simple_name"
+			CSR_SUBJECT_ALT_NAME="DNS:$simple_name"
+			
+			while read -e -p "Enter a [DNS Subject Alternative Name] for the server certificate: " dns && [ "$dns" != "" ]; do 
+				CSR_SUBJECT_ALT_NAME="$CSR_SUBJECT_ALT_NAME,DNS:$dns"
+			done
 			CSR_USER_PRINCIPAL_NAME="N/A"
-			CSR_DNS_NAME="DNS Name:${dns}"
-			;;
+			;;		
 		all_extensions)
 			echo "Enter the [User Principal Name] for the certificate: "
 			while read -e upn && [ -z "$upn" ]; do :; done
 			CSR_COMMON_NAME="$upn"
-			CSR_USER_PRINCIPAL_NAME="Principal Name:${upn}"
+			CSR_USER_PRINCIPAL_NAME="$upn"
 			echo "Enter the [DNS Subject Alternative Name] for the certificate: "
 			while read dns && [ -z "$dns" ]; do :; done
-			CSR_DNS_NAME="DNS Name:${dns}"
+			CSR_SUBJECT_ALT_NAME="$dns"
 			;;
 		*)
 			echo "Invalid extension: $template_extension"
@@ -338,11 +342,17 @@ create_cert() {
 
 	local cert_name=${CSR_COMMON_NAME}
 	if [ -e $PRIVATE_KEY_STORE/${cert_name}.pem ] || [ -e $PUBLIC_KEY_STORE/${cert_name}.pem ]; then
-	    i=1
-	    while [ -e $PRIVATE_KEY_STORE/${cert_name}_$i.pem ] ; do
-	        let i++
-	    done
-	    cert_name=${cert_name}_$i
+	
+		read -p "Override existing certificate ($PUBLIC_KEY_STORE/${cert_name}.pem)? (Y/N)" -n 1 -r
+		echo
+		if [[ ! $REPLY =~ ^[Yy]$ ]]
+		then
+		    i=1
+		    while [ -e $PRIVATE_KEY_STORE/${cert_name}_$i.pem ] ; do
+		        let i++
+		    done
+		    cert_name=${cert_name}_$i
+		fi
 	fi
 
 	local private_key=$PRIVATE_KEY_STORE/${cert_name}.pem
@@ -353,8 +363,8 @@ create_cert() {
 
 	echo "Generating signing request for new $template_extension certificate..."
 	echo -e "\tCommonName: $CSR_COMMON_NAME"
-	echo -e "\tUPN: $CSR_USER_PRINCIPAL_NAME"
-	echo -e "\tDNS: $CSR_DNS_NAME"
+	echo -e "\tUserPrincipalName: $CSR_USER_PRINCIPAL_NAME"
+	echo -e "\tSubjectAltName: $CSR_SUBJECT_ALT_NAME"
 	echo
 	openssl req -config $CONFIG_FILE -new -keyout $private_key -out $csr
 	if [ ! -e $private_key ]; then
