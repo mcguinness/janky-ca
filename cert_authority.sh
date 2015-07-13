@@ -13,8 +13,11 @@ CRL_STORE=$CERT_AUTHORITY_HOME/crl
 CSR_STORE=$CERT_AUTHORITY_HOME/csr
 NEW_CERT_STORE=$CERT_AUTHORITY_HOME/newcerts
 AUTHORITY_DB=$CERT_AUTHORITY_HOME/database
+
 CA_ROOT_PRIVATE_KEY=$CERT_AUTHORITY_HOME/private/root_ca.pem
+CA_ROOT_PUBLIC_KEY=$CERT_AUTHORITY_HOME/certs/root_ca.pem
 CA_INTERMEDIATE_PRIVATE_KEY=$CERT_AUTHORITY_HOME/private/intermediate_ca.pem
+CA_INTERMEDIATE_PUBLIC_KEY=$CERT_AUTHORITY_HOME/certs/intermediate_ca.pem
 
 # CA Common Name is $AUTHORITY_CN_PREFIX $AUTHORITY_TYPE CA
 AUTHORITY_CN_PREFIX="Janky"
@@ -69,7 +72,7 @@ create_root() {
 # $1 - CA Authority Type (Root or Intermediate)
 reset_db() {
 	local authority_type=$1; shift
-	
+
 	local authority_db=$CERT_AUTHORITY_HOME/database/$(echo "$authority_type" | tr '[:upper:]' '[:lower:]')
 	local authority_index=$authority_db/index.txt
 	local authority_serial=$authority_db/serial
@@ -123,7 +126,7 @@ create_ca() {
 
 	if [ "$authority_type" == "Root" ]; then
 		extension_name="ca_extensions"
-		
+
 		echo "Generating self-signed root certificate..."
 		echo
 		openssl req -config $CONFIG_FILE -new -x509 -extensions ca_extensions -days 5000 -keyout $private_key -out $cert_pem
@@ -179,7 +182,7 @@ create_ca() {
 		if [ ! -e $cert_der ]; then
 			echo "Error occurred converting public key $cert_pem!" >&2
 			exit 1
-		fi	
+		fi
 	fi
 
 	echo "Successfully generated certificate for $CSR_COMMON_NAME"
@@ -192,7 +195,7 @@ create_ca() {
 gen_ca_chain() {
 	local root_cert_pem=$PUBLIC_KEY_STORE/root_ca.pem
 	local intermediate_cert_pem=$PUBLIC_KEY_STORE/intermediate_ca.pem
-	
+
 	local ca_chain_pem=$PUBLIC_KEY_STORE/ca_chain.pem
 	local ca_chain_pkcs=$PUBLIC_KEY_STORE/ca_chain.p7b
 
@@ -210,12 +213,12 @@ gen_ca_chain() {
 	if [ ! -e $ca_chain_pkcs ]; then
 		echo "Error occurred generating certificate chain for authorities $root_cert_pem & $intermediate_cert_pem!" >&2
 		exit 1
-	fi	
+	fi
 
 	echo "Successfully generated certificate authority chain certificate"
 	echo -e  "\tPublic Key Chain (PEM): $ca_chain_pem"
 	echo -e  "\tPublic Key Chain (PKCS): $ca_chain_pkcs"
-	echo		
+	echo
 }
 
 # $1 - extension_name variable to return
@@ -225,7 +228,7 @@ select_cert_template() {
 
 	echo "Select a Certificate Template"
 	PS3="Enter Certificate Template (1-2):"
-	select opt in "Client Authentication" "Server Authentication"; do 
+	select opt in "Client Authentication" "Server Authentication"; do
 	    case "$REPLY" in
 		    1) template="client"; break;;
 		    2) template="server"; break;;
@@ -238,7 +241,7 @@ select_cert_template() {
 		client)
 			echo "Select Client Certificate Extensions"
 			PS3="Enter Client Certificate Extension (1-4):"
-			select opt in "Simple Subject Name" "Email" "User Principal Name" "All"; do 
+			select opt in "Simple Subject Name" "Email" "User Principal Name" "All"; do
 			    case "$REPLY" in
 				    1) extension_name="client_auth_extensions"; break;;
 				    2) extension_name="client_auth_email_extensions"; break;;
@@ -247,11 +250,11 @@ select_cert_template() {
 				    *) echo "Invalid extension. Select a valid extension.";continue;;
 			    esac
 			done
-			;;		
+			;;
 		server)
 			echo "Select Server Certificate Extension"
 			PS3="Enter Server Certificate Extension (1-2):"
-			select opt in "Simple Subject Name" "DNS Subject Alternative Name"; do 
+			select opt in "Simple Subject Name" "DNS Subject Alternative Name"; do
 			    case "$REPLY" in
 				    1 ) extension_name="server_auth_extensions"; break;;
 					2 ) extension_name="server_auth_san_extensions"; break;;
@@ -313,12 +316,12 @@ create_cert() {
 			while read -e simple_name && [[ -z "$simple_name" ]]; do :; done
 			CSR_COMMON_NAME="$simple_name"
 			CSR_SUBJECT_ALT_NAME="DNS:$simple_name"
-			
-			while read -e -p "Enter a [DNS Subject Alternative Name] for the server certificate: " dns && [ "$dns" != "" ]; do 
+
+			while read -e -p "Enter a [DNS Subject Alternative Name] for the server certificate: " dns && [ "$dns" != "" ]; do
 				CSR_SUBJECT_ALT_NAME="$CSR_SUBJECT_ALT_NAME,DNS:$dns"
 			done
 			CSR_USER_PRINCIPAL_NAME="N/A"
-			;;		
+			;;
 		all_extensions)
 			echo "Enter the [User Principal Name] for the certificate: "
 			while read -e upn && [ -z "$upn" ]; do :; done
@@ -342,7 +345,7 @@ create_cert() {
 
 	local cert_name=${CSR_COMMON_NAME}
 	if [ -e $PRIVATE_KEY_STORE/${cert_name}.pem ] || [ -e $PUBLIC_KEY_STORE/${cert_name}.pem ]; then
-	
+
 		read -p "Override existing certificate ($PUBLIC_KEY_STORE/${cert_name}.pem)? (Y/N)" -n 1 -r
 		echo
 		if [[ ! $REPLY =~ ^[Yy]$ ]]
@@ -375,14 +378,14 @@ create_cert() {
 		echo "Error occurred generating certificate signing request $csr!" >&2
 		exit 1
 	fi
-	echo 
+	echo
 	echo "Signing certificate request.."
 	openssl ca -config $CONFIG_FILE -name $AUTHORITY_SECTION_NAME -policy $POLICY_SECTION_NAME -extensions $template_extension -in $csr -out $cert_pem
 	rm $csr
 	if [ ! -e $cert_pem ]; then
 		echo "Error occurred signing certificate $csr!" >&2
 		exit 1
-	fi	
+	fi
 	echo "Converting certificate formats..."
 	echo
 	openssl x509 -in $cert_pem -out $cert_der -outform DER
@@ -403,6 +406,56 @@ create_cert() {
 	echo -e  "\tPublic Key (DER): $cert_der"
 }
 
+# $1 - path of pem cert to revoke
+revoke_cert() {
+
+	local cert_pem=$1; shift
+
+	echo "Revoking certificate $cert_pem..."
+	echo
+
+	if [ ! -e $cert_pem ]; then
+		echo "Certificate $cert_pem does not exist!" >&2
+		exit 1
+	fi
+
+	openssl ca -config $CONFIG_FILE -name $AUTHORITY_SECTION_NAME -revoke $cert_pem
+	openssl ca -config $CONFIG_FILE -name $AUTHORITY_SECTION_NAME -gencrl -out $CRL_STORE/intermediate_ca.crl
+	openssl ca -config $CONFIG_FILE -gencrl -out $CRL_STORE/root_ca.crl
+
+	echo "Successfully revoked certificate $cert_pem"
+}
+
+trust_roots() {
+
+	echo "Adding system trust to certificate authorities.."
+	echo
+
+	if [ ! -e $CA_ROOT_PUBLIC_KEY ]; then
+		echo "Certificate Authority public key $CA_ROOT_PUBLIC_KEY does not exist!" >&2
+		exit 1
+	fi
+
+	if [ ! -e $CA_INTERMEDIATE_PUBLIC_KEY ]; then
+		echo "Certificate Authority public key $CA_ROOT_PUBLIC_KEY does not exist!" >&2
+		exit 1
+	fi
+
+	if [ "$(id -u)" != "0" ]; then
+    	echo "You must run this script as root/administrator to modify system trust settings" >&2
+    	exit 1
+	fi
+
+	if [ "$(uname)" == "Darwin" ]; then
+		security add-trusted-cert -d -r trustRoot -k "/Library/Keychains/System.keychain" "$CA_ROOT_PUBLIC_KEY"
+		security add-trusted-cert -d -r trustRoot -k "/Library/Keychains/System.keychain" "$CA_INTERMEDIATE_PUBLIC_KEY"
+	#elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
+	    # Do something under Linux platform
+	#elif [ "$(expr substr $(uname -s) 1 10)" == "MINGW32_NT" ]; then
+	    # Do something under Windows NT platform
+	fi
+}
+
 
 main() {
 	if [ -z ${CERT_AUTHORITY_HOME:+x} ]; then
@@ -420,18 +473,28 @@ main() {
 
 	local create_authority=0
 	local template_extension
-	
-	while getopts "h?tc:" opt; do
+	local revoke_cert=0
+	local cert
+	local trust_authority=0
+
+	while getopts "h?c:ar:t" opt; do
 	    case "$opt" in
 	    h|\?)
 	        #show_help
 	        exit 0
 	        ;;
-	    t)
+	    c)
 			template_extension=$OPTARG
 	        ;;
-	    c)
+	    a)
 			create_authority=1
+	        ;;
+	    r)
+			revoke_cert=1
+			cert=$OPTARG
+	        ;;
+	    t)
+			trust_authority=1
 	        ;;
 	    esac
 	done
@@ -448,21 +511,42 @@ main() {
 		create_root
 		for authority in "Root" "Intermediate"; do
 			create_ca $authority
-		done 
+		done
 		gen_ca_chain
 	fi
 
-	echo
-	echo '-------------------------------------------------------------------------------'
-	echo 'New Certificate Request'
-	echo '-------------------------------------------------------------------------------'
-	echo
+	if [ $trust_authority -eq 1 ]; then
 
-	if [ -z ${select_cert_template:+x} ]; then
-		select_cert_template template_extension
+		echo
+		echo '-------------------------------------------------------------------------------'
+		echo 'Certificate Authority Trust'
+		echo '-------------------------------------------------------------------------------'
+		echo
+
+		trust_roots
+	elif [ $revoke_cert -eq 1 ]; then
+
+		echo
+		echo '-------------------------------------------------------------------------------'
+		echo 'Certificate Revocation'
+		echo '-------------------------------------------------------------------------------'
+		echo
+
+		revoke_cert $cert
+	else
+
+		echo
+		echo '-------------------------------------------------------------------------------'
+		echo 'New Certificate Request'
+		echo '-------------------------------------------------------------------------------'
+		echo
+
+		if [ -z ${select_cert_template:+x} ]; then
+			select_cert_template template_extension
+		fi
+
+		create_cert $template_extension
 	fi
-
-	create_cert $template_extension
 }
 
 main "$@"
