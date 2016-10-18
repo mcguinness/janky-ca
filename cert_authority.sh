@@ -36,34 +36,34 @@ export CA_CRL_URL="http://localhost:19840/crl"
 export CA_AIA_URL="http://localhost:19840/certs"
 
 create_root() {
-	if [ ! -d $PUBLIC_KEY_STORE ]; then
+	if [ ! -d "$PUBLIC_KEY_STORE" ]; then
 		echo "Creating public key certificate store"
-		mkdir $PUBLIC_KEY_STORE
+		mkdir "$PUBLIC_KEY_STORE"
 	fi
 
-	if [ ! -d $PRIVATE_KEY_STORE ]; then
+	if [ ! -d "$PRIVATE_KEY_STORE" ]; then
 		echo "Creating private key certificate store"
-		mkdir $PRIVATE_KEY_STORE
+		mkdir "$PRIVATE_KEY_STORE"
 	fi
 
-	if [ ! -d $CRL_STORE ]; then
+	if [ ! -d "$CRL_STORE" ]; then
 		echo "Creating certificate revocation list store"
-		mkdir $CRL_STORE
+		mkdir "$CRL_STORE"
 	fi
 
-	if [ ! -d $CSR_STORE ]; then
+	if [ ! -d "$CSR_STORE" ]; then
 		echo "Creating certificate signing request store"
-		mkdir $CSR_STORE
+		mkdir "$CSR_STORE"
 	fi
 
-	if [ ! -d $NEW_CERT_STORE ]; then
+	if [ ! -d "$NEW_CERT_STORE" ]; then
 		echo "Creating new certificate store"
-		mkdir $NEW_CERT_STORE
+		mkdir "$NEW_CERT_STORE"
 	fi
 
-	if [ ! -d $AUTHORITY_DB ]; then
+	if [ ! -d "$AUTHORITY_DB" ]; then
 		echo "Creating authority database"
-		mkdir $AUTHORITY_DB
+		mkdir "$AUTHORITY_DB"
 	fi
 
 	echo
@@ -78,7 +78,7 @@ reset_db() {
 	local authority_serial=$authority_db/serial
 	local authority_crlnumber=$authority_db/crlnumber
 
-	if [ -d $authority_db ]; then
+	if [ -d "$authority_db" ]; then
 		echo "Existing certificate authority database $authority_db exists"
 		read -p "Do you want to destroy your existing certificate authority database? (Y/N)" -n 1 -r
 		if [[ ! $REPLY =~ ^[Yy]$ ]]
@@ -89,22 +89,22 @@ reset_db() {
 		echo
 	fi
 
-	if [ ! -d $authority_db ]; then
+	if [ ! -d "$authority_db" ]; then
 		echo "Creating certificate authority database"
 		echo
-		mkdir $authority_db
+		mkdir "$authority_db"
 	fi
 
-	if [ ! -e $authority_index ]; then
-		echo `touch $authority_index`
+	if [ ! -e "$authority_index" ]; then
+		echo `touch "$authority_index"`
 	fi
 
-	if [ ! -e $authority_serial ]; then
-		echo 01 >$authority_serial
+	if [ ! -e "$authority_serial" ]; then
+		echo 01 >"$authority_serial"
 	fi
 
-	if [ ! -e $authority_crlnumber ]; then
-		echo 00 >$authority_crlnumber
+	if [ ! -e "$authority_crlnumber" ]; then
+		echo 00 >"$authority_crlnumber"
 	fi
 }
 
@@ -112,7 +112,7 @@ reset_db() {
 create_ca() {
 	local authority_type=$1; shift
 	CSR_COMMON_NAME="$AUTHORITY_CN_PREFIX $authority_type CA"
-	local authority=$(echo "$authority_type" | tr '[:upper:]' '[:lower:]')_ca
+	local authority="$(echo "$authority_type" | tr '[:upper:]' '[:lower:]')_ca"
 	local private_key=$PRIVATE_KEY_STORE/${authority}.pem
 	local cert_pem=$PUBLIC_KEY_STORE/${authority}.pem
 	local cert_der=$PUBLIC_KEY_STORE/${authority}.crt
@@ -122,27 +122,27 @@ create_ca() {
 	echo "Creating $CSR_COMMON_NAME certificate authority"
 	echo
 
-	reset_db $authority_type
+	reset_db "$authority_type"
 
 	if [ "$authority_type" == "Root" ]; then
 		extension_name="ca_extensions"
 
 		echo "Generating self-signed root certificate..."
 		echo
-		openssl req -config $CONFIG_FILE -new -x509 -extensions ca_extensions -days 5000 -keyout $private_key -out $cert_pem
-		if [ ! -e $private_key ]; then
+		openssl req -config "$CONFIG_FILE" -new -x509 -extensions ca_extensions -days 5000 -keyout "$private_key" -out "$cert_pem"
+		if [ ! -e "$private_key" ]; then
 			echo "Error occurred generating private key $private_key!" >&2
 			exit 1
 		fi
-		if [ ! -e $cert_pem ]; then
+		if [ ! -e "$cert_pem" ]; then
 			echo "Error occurred generating certificate $cert_pem!" >&2
 			exit 1
 		fi
 
 		echo "Converting certificate format..."
 		echo
-		openssl x509 -in $cert_pem -out $cert_der -outform DER
-		if [ ! -e $cert_der ]; then
+		openssl x509 -in "$cert_pem" -out "$cert_der" -outform DER
+		if [ ! -e "$cert_der" ]; then
 			echo "Error occurred converting public key $cert_der!" >&2
 			exit 1
 		fi
@@ -157,29 +157,29 @@ create_ca() {
 
 		echo "Generating certificate signing request for new certificate authority..."
 		echo
-		openssl req -config $CONFIG_FILE -new -keyout $private_key -out $csr
-		if [ ! -e $private_key ]; then
+		openssl req -config "$CONFIG_FILE" -new -keyout "$private_key" -out "$csr"
+		if [ ! -e "$private_key" ]; then
 			echo "Error occurred generating private key $private_key!" >&2
 			exit 1
 		fi
-		if [ ! -e $csr ]; then
+		if [ ! -e "$csr" ]; then
 			echo "Error occurred generating certificate signing request $csr!" >&2
 			exit 1
 		fi
 
 		echo "Signing certificate request..."
 		echo
-		openssl ca -config $CONFIG_FILE -policy $POLICY_SECTION_NAME -extensions $extension_name -in $csr -out $cert_pem
-		rm $csr
-		if [ ! -e $cert_pem ]; then
+		openssl ca -config "$CONFIG_FILE" -policy "$POLICY_SECTION_NAME" -extensions "$extension_name" -in "$csr" -out "$cert_pem"
+		rm "$csr"
+		if [ ! -e "$cert_pem" ]; then
 			echo "Error occurred signing certificate $csr!" >&2
 			exit 1
 		fi
 
 		echo "Converting certificate format..."
 		echo
-		openssl x509 -in $cert_pem -out $cert_der -outform DER
-		if [ ! -e $cert_der ]; then
+		openssl x509 -in "$cert_pem" -out "$cert_der" -outform DER
+		if [ ! -e "$cert_der" ]; then
 			echo "Error occurred converting public key $cert_pem!" >&2
 			exit 1
 		fi
@@ -202,15 +202,15 @@ gen_ca_chain() {
 	echo "Generating certificate chain for authorities"
 	echo
 
-	cat $root_cert_pem > $ca_chain_pem
-	if [ -e $intermediate_cert_pem ]; then
-		cat $intermediate_cert_pem > $ca_chain_pem
-		openssl crl2pkcs7 -nocrl -certfile $root_cert_pem -certfile $intermediate_cert_pem -out $ca_chain_pkcs -outform DER
+	cat "$root_cert_pem" > "$ca_chain_pem"
+	if [ -e "$intermediate_cert_pem" ]; then
+		cat "$intermediate_cert_pem" > "$ca_chain_pem"
+		openssl crl2pkcs7 -nocrl -certfile "$root_cert_pem" -certfile "$intermediate_cert_pem" -out "$ca_chain_pkcs" -outform DER
 	else
-		openssl crl2pkcs7 -nocrl -certfile $root_cert_pem -out $ca_chain_pkcs -outform DER
+		openssl crl2pkcs7 -nocrl -certfile "$root_cert_pem" -out "$ca_chain_pkcs" -outform DER
 	fi
 
-	if [ ! -e $ca_chain_pkcs ]; then
+	if [ ! -e "$ca_chain_pkcs" ]; then
 		echo "Error occurred generating certificate chain for authorities $root_cert_pem & $intermediate_cert_pem!" >&2
 		exit 1
 	fi
@@ -344,14 +344,14 @@ create_cert() {
 	fi
 
 	local cert_name=${CSR_COMMON_NAME}
-	if [ -e $PRIVATE_KEY_STORE/${cert_name}.pem ] || [ -e $PUBLIC_KEY_STORE/${cert_name}.pem ]; then
+	if [ -e "$PRIVATE_KEY_STORE/${cert_name}.pem" ] || [ -e "$PUBLIC_KEY_STORE/${cert_name}.pem" ]; then
 
 		read -p "Override existing certificate ($PUBLIC_KEY_STORE/${cert_name}.pem)? (Y/N)" -n 1 -r
 		echo
 		if [[ ! $REPLY =~ ^[Yy]$ ]]
 		then
 		    i=1
-		    while [ -e $PRIVATE_KEY_STORE/${cert_name}_$i.pem ] ; do
+		    while [ -e "$PRIVATE_KEY_STORE/${cert_name}_$i.pem" ] ; do
 		        let i++
 		    done
 		    cert_name=${cert_name}_$i
@@ -369,32 +369,32 @@ create_cert() {
 	echo -e "\tUserPrincipalName: $CSR_USER_PRINCIPAL_NAME"
 	echo -e "\tSubjectAltName: $CSR_SUBJECT_ALT_NAME"
 	echo
-	openssl req -config $CONFIG_FILE -new -keyout $private_key -out $csr
-	if [ ! -e $private_key ]; then
+	openssl req -config "$CONFIG_FILE" -new -keyout "$private_key" -out "$csr"
+	if [ ! -e "$private_key" ]; then
 		echo "Error occurred generating private key $private_key!" >&2
 		exit 1
 	fi
-	if [ ! -e $csr ]; then
+	if [ ! -e "$csr" ]; then
 		echo "Error occurred generating certificate signing request $csr!" >&2
 		exit 1
 	fi
 	echo
 	echo "Signing certificate request.."
-	openssl ca -config $CONFIG_FILE -name $AUTHORITY_SECTION_NAME -policy $POLICY_SECTION_NAME -extensions $template_extension -in $csr -out $cert_pem
-	rm $csr
-	if [ ! -e $cert_pem ]; then
+	openssl ca -config "$CONFIG_FILE" -name "$AUTHORITY_SECTION_NAME" -policy "$POLICY_SECTION_NAME" -extensions "$template_extension" -in "$csr" -out "$cert_pem"
+	rm "$csr"
+	if [ ! -e "$cert_pem" ]; then
 		echo "Error occurred signing certificate $csr!" >&2
 		exit 1
 	fi
 	echo "Converting certificate formats..."
 	echo
-	openssl x509 -in $cert_pem -out $cert_der -outform DER
-	if [ ! -e $cert_der ]; then
+	openssl x509 -in "$cert_pem" -out "$cert_der" -outform DER
+	if [ ! -e "$cert_der" ]; then
 		echo "Error occurred converting public key $cert_pem!" >&2
 		exit 1
 	fi
-	openssl pkcs12 -nodes -export -out $cert_pfx -in $cert_pem -inkey $private_key
-	if [ ! -e $cert_pem ] || [ ! -e $private_key ]; then
+	openssl pkcs12 -nodes -export -out "$cert_pfx" -in "$cert_pem" -inkey "$private_key"
+	if [ ! -e "$cert_pem" ] || [ ! -e "$private_key" ]; then
 		echo "Error occurred converting public/private key $cert_pem & $private_key!" >&2
 		exit 1
 	fi
@@ -409,19 +409,19 @@ create_cert() {
 # $1 - path of pem cert to revoke
 revoke_cert() {
 
-	local cert_pem=$1; shift
+	local cert_pem="$1"; shift
 
 	echo "Revoking certificate $cert_pem..."
 	echo
 
-	if [ ! -e $cert_pem ]; then
+	if [ ! -e "$cert_pem" ]; then
 		echo "Certificate $cert_pem does not exist!" >&2
 		exit 1
 	fi
 
-	openssl ca -config $CONFIG_FILE -name $AUTHORITY_SECTION_NAME -revoke $cert_pem
-	openssl ca -config $CONFIG_FILE -name $AUTHORITY_SECTION_NAME -gencrl -out $CRL_STORE/intermediate_ca.crl
-	openssl ca -config $CONFIG_FILE -gencrl -out $CRL_STORE/root_ca.crl
+	openssl ca -config "$CONFIG_FILE" -name "$AUTHORITY_SECTION_NAME" -revoke "$cert_pem"
+	openssl ca -config "$CONFIG_FILE" -name "$AUTHORITY_SECTION_NAME" -gencrl -out "$CRL_STORE/intermediate_ca.crl"
+	openssl ca -config "$CONFIG_FILE" -gencrl -out "$CRL_STORE/root_ca.crl"
 
 	echo "Successfully revoked certificate $cert_pem"
 }
@@ -431,12 +431,12 @@ trust_roots() {
 	echo "Adding system trust to certificate authorities.."
 	echo
 
-	if [ ! -e $CA_ROOT_PUBLIC_KEY ]; then
+	if [ ! -e "$CA_ROOT_PUBLIC_KEY" ]; then
 		echo "Certificate Authority public key $CA_ROOT_PUBLIC_KEY does not exist!" >&2
 		exit 1
 	fi
 
-	if [ ! -e $CA_INTERMEDIATE_PUBLIC_KEY ]; then
+	if [ ! -e "$CA_INTERMEDIATE_PUBLIC_KEY" ]; then
 		echo "Certificate Authority public key $CA_ROOT_PUBLIC_KEY does not exist!" >&2
 		exit 1
 	fi
@@ -458,12 +458,12 @@ trust_roots() {
 
 
 main() {
-	if [ -z ${CERT_AUTHORITY_HOME:+x} ]; then
+	if [ -z "${CERT_AUTHORITY_HOME:+x}" ]; then
 		echo "\$CERT_AUTHORITY_HOME environment variable must be defined!" >&2
 		exit 1
 	fi
 
-	if [ ! -d $CERT_AUTHORITY_HOME ]; then
+	if [ ! -d "$CERT_AUTHORITY_HOME" ]; then
 		echo "\$CERT_AUTHORITY_HOME does not resolve to valid path!" >&2
 		exit 1
 	fi
@@ -502,7 +502,7 @@ main() {
 	shift $((OPTIND-1))
 	[ "$1" = "--" ] && shift
 
-	if [ ! -e $CA_ROOT_PRIVATE_KEY ] || [ ! -e $CA_INTERMEDIATE_PRIVATE_KEY ] || [ $create_authority -eq 1 ] ; then
+	if [ ! -e "$CA_ROOT_PRIVATE_KEY" ] || [ ! -e "$CA_INTERMEDIATE_PRIVATE_KEY" ] || [ "$create_authority" -eq 1 ] ; then
 		echo
 		echo '-------------------------------------------------------------------------------'
 		echo 'Certificate Authority'
@@ -510,12 +510,12 @@ main() {
 		echo
 		create_root
 		for authority in "Root" "Intermediate"; do
-			create_ca $authority
+			create_ca "$authority"
 		done
 		gen_ca_chain
 	fi
 
-	if [ $trust_authority -eq 1 ]; then
+	if [ "$trust_authority" -eq 1 ]; then
 
 		echo
 		echo '-------------------------------------------------------------------------------'
@@ -524,7 +524,7 @@ main() {
 		echo
 
 		trust_roots
-	elif [ $revoke_cert -eq 1 ]; then
+	elif [ "$revoke_cert" -eq 1 ]; then
 
 		echo
 		echo '-------------------------------------------------------------------------------'
@@ -532,7 +532,7 @@ main() {
 		echo '-------------------------------------------------------------------------------'
 		echo
 
-		revoke_cert $cert
+		revoke_cert "$cert"
 	else
 
 		echo
@@ -541,11 +541,11 @@ main() {
 		echo '-------------------------------------------------------------------------------'
 		echo
 
-		if [ -z ${select_cert_template:+x} ]; then
+		if [ -z "${select_cert_template:+x}" ]; then
 			select_cert_template template_extension
 		fi
 
-		create_cert $template_extension
+		create_cert "$template_extension"
 	fi
 }
 
