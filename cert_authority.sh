@@ -32,8 +32,8 @@ export CSR_SUBJECT_ALT_NAME="localhost"
 export CSR_USER_PRINCIPAL_NAME="user@example.com"
 
 # These URLs will be stamped into issued certs and must be reachable by clients for revocation checking
-export CA_CRL_URL="http://localhost:19840/crl"
-export CA_AIA_URL="http://localhost:19840/certs"
+export CA_CRL_URL="http://ca.example.com:19840/crl"
+export CA_AIA_URL="http://ca.example.com:19840/certs"
 
 create_root() {
 	if [ ! -d "$PUBLIC_KEY_STORE" ]; then
@@ -241,7 +241,7 @@ select_cert_template() {
 		client)
 			echo "Select Client Certificate Extensions"
 			PS3="Enter Client Certificate Extension (1-4):"
-			select opt in "Simple Subject Name" "Email" "User Principal Name" "All"; do
+			select opt in "Simple Subject Name" "Email" "User Principal Name (Smartcard)" "All"; do
 			    case "$REPLY" in
 				    1) extension_name="client_auth_extensions"; break;;
 				    2) extension_name="client_auth_email_extensions"; break;;
