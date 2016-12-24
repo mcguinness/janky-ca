@@ -2,8 +2,10 @@
 
 # Simple OpenSSL Certificate Authority
 # Author: Karl McGuinness
-# Version: 0.1
+# Version: 0.2
 
+# Load environment variables
+eval export $(cat .env | grep -v "#" | xargs)
 
 # If these paths change, CONFIG_FILE must be updated
 CONFIG_FILE=$PWD/ca_openssl.cfg
@@ -19,21 +21,9 @@ CA_ROOT_PUBLIC_KEY=$CERT_AUTHORITY_HOME/certs/root_ca.pem
 CA_INTERMEDIATE_PRIVATE_KEY=$CERT_AUTHORITY_HOME/private/intermediate_ca.pem
 CA_INTERMEDIATE_PUBLIC_KEY=$CERT_AUTHORITY_HOME/certs/intermediate_ca.pem
 
-# CA Common Name is $AUTHORITY_CN_PREFIX $AUTHORITY_TYPE CA
-AUTHORITY_CN_PREFIX="Janky"
-
 # Sign Certificates w/ Intermediate CA and use default policy
 AUTHORITY_SECTION_NAME="intermediate_ca"
 POLICY_SECTION_NAME="policy_anything"
-
-# Required to be set to default value by OpenSSL Config File (Override)
-export CSR_COMMON_NAME="localhost"
-export CSR_SUBJECT_ALT_NAME="localhost"
-export CSR_USER_PRINCIPAL_NAME="user@example.com"
-
-# These URLs will be stamped into issued certs and must be reachable by clients for revocation checking
-export CA_CRL_URL="http://ca.example.com:19840/crl"
-export CA_AIA_URL="http://ca.example.com:19840/certs"
 
 create_root() {
 	if [ ! -d "$PUBLIC_KEY_STORE" ]; then
@@ -193,18 +183,18 @@ create_ca() {
 }
 
 gen_ca_chain() {
-	local root_cert_pem=$PUBLIC_KEY_STORE/root_ca.pem
-	local intermediate_cert_pem=$PUBLIC_KEY_STORE/intermediate_ca.pem
+	local root_cert_pem="$PUBLIC_KEY_STORE/root_ca.pem"
+	local intermediate_cert_pem="$PUBLIC_KEY_STORE/intermediate_ca.pem"
 
-	local ca_chain_pem=$PUBLIC_KEY_STORE/ca_chain.pem
-	local ca_chain_pkcs=$PUBLIC_KEY_STORE/ca_chain.p7b
+	local ca_chain_pem="$PUBLIC_KEY_STORE/ca_chain.pem"
+	local ca_chain_pkcs="$PUBLIC_KEY_STORE/ca_chain.p7b"
 
 	echo "Generating certificate chain for authorities"
 	echo
 
 	cat "$root_cert_pem" > "$ca_chain_pem"
 	if [ -e "$intermediate_cert_pem" ]; then
-		cat "$intermediate_cert_pem" > "$ca_chain_pem"
+		cat "$intermediate_cert_pem" >> "$ca_chain_pem"
 		openssl crl2pkcs7 -nocrl -certfile "$root_cert_pem" -certfile "$intermediate_cert_pem" -out "$ca_chain_pkcs" -outform DER
 	else
 		openssl crl2pkcs7 -nocrl -certfile "$root_cert_pem" -out "$ca_chain_pkcs" -outform DER
@@ -268,11 +258,10 @@ select_cert_template() {
 	eval "$1=$extension_name"
 }
 
-# $1 - certificate extension to request
-create_cert() {
-	local template_extension=$1; shift
+# $1 - certificate template to request
+prompt_csr_subject() {
 
-	echo "Certificate Template: $template_extension"
+	echo "Generating Subject/Subject Alternative Name for Certificate Template: $template_extension"
 	echo
 
 	case $template_extension in
@@ -315,10 +304,16 @@ create_cert() {
 			echo "Enter the [Simple Name] for the server certificate subject: "
 			while read -e simple_name && [[ -z "$simple_name" ]]; do :; done
 			CSR_COMMON_NAME="$simple_name"
-			CSR_SUBJECT_ALT_NAME="DNS:$simple_name"
+			CSR_SUBJECT_ALT_NAME=""
 
-			while read -e -p "Enter a [DNS Subject Alternative Name] for the server certificate: " dns && [ "$dns" != "" ]; do
-				CSR_SUBJECT_ALT_NAME="$CSR_SUBJECT_ALT_NAME,DNS:$dns"
+			while read -e -p "Enter a [DNS Subject Alternative Name] for the server certificate: "  dns && [ "$dns" != "" ]; do
+				if [[ "$CSR_SUBJECT_ALT_NAME" != *"$dns"* ]]; then
+					if [ -z "${CSR_SUBJECT_ALT_NAME:+x}" ]; then
+						CSR_SUBJECT_ALT_NAME="DNS:$dns"
+					else
+						CSR_SUBJECT_ALT_NAME="$CSR_SUBJECT_ALT_NAME,DNS:$dns"
+					fi
+				fi
 			done
 			CSR_USER_PRINCIPAL_NAME="N/A"
 			;;
@@ -336,11 +331,23 @@ create_cert() {
 			;;
 	esac
 
-	read -p "Add CRL Distribution Point Extension? (Y/N)" -n 1 -r
+}
+
+# $1 - certificate extension to request
+create_cert() {
+	local template_extension=$1; shift
+
+	echo "Generating signing request with template [$template_extension]..."
+	echo -e "\tCommon Name: $CSR_COMMON_NAME"
+	echo -e "\tUser Principal Name: $CSR_USER_PRINCIPAL_NAME"
+	echo -e "\tSubject Alternative Name: $CSR_SUBJECT_ALT_NAME"
+	echo
+
+	read -p "Add CRL Distribution Point Extension ($CA_CRL_URL)? (Y/N)" -n 1 -r
 	echo
 	if [[ ! $REPLY =~ ^[Yy]$ ]]
 	then
-	    template_extension="${template_extension}_no_crl"
+		template_extension="${template_extension}"
 	fi
 
 	local cert_name=${CSR_COMMON_NAME}
@@ -350,11 +357,11 @@ create_cert() {
 		echo
 		if [[ ! $REPLY =~ ^[Yy]$ ]]
 		then
-		    i=1
-		    while [ -e "$PRIVATE_KEY_STORE/${cert_name}_$i.pem" ] ; do
-		        let i++
-		    done
-		    cert_name=${cert_name}_$i
+			i=1
+			while [ -e "$PRIVATE_KEY_STORE/${cert_name}_$i.pem" ] ; do
+				let i++
+			done
+			cert_name=${cert_name}_$i
 		fi
 	fi
 
@@ -364,11 +371,6 @@ create_cert() {
 	local cert_pfx=$PRIVATE_KEY_STORE/${cert_name}.pfx
 	local csr=$CSR_STORE/${cert_name}.csr
 
-	echo "Generating signing request for new $template_extension certificate..."
-	echo -e "\tCommonName: $CSR_COMMON_NAME"
-	echo -e "\tUserPrincipalName: $CSR_USER_PRINCIPAL_NAME"
-	echo -e "\tSubjectAltName: $CSR_SUBJECT_ALT_NAME"
-	echo
 	openssl req -config "$CONFIG_FILE" -new -keyout "$private_key" -out "$csr"
 	if [ ! -e "$private_key" ]; then
 		echo "Error occurred generating private key $private_key!" >&2
@@ -478,25 +480,25 @@ main() {
 	local trust_authority=0
 
 	while getopts "h?c:ar:t" opt; do
-	    case "$opt" in
-	    h|\?)
-	        #show_help
-	        exit 0
-	        ;;
-	    c)
+		case "$opt" in
+		h|\?)
+			#show_help
+			exit 0
+			;;
+		c)
 			template_extension=$OPTARG
-	        ;;
-	    a)
-			create_authority=1
-	        ;;
-	    r)
-			revoke_cert=1
-			cert=$OPTARG
-	        ;;
-	    t)
-			trust_authority=1
-	        ;;
-	    esac
+			;;
+		a)
+		create_authority=1
+			;;
+		r)
+		revoke_cert=1
+		cert=$OPTARG
+			;;
+		t)
+		trust_authority=1
+			;;
+		esac
 	done
 
 	shift $((OPTIND-1))
@@ -541,8 +543,14 @@ main() {
 		echo '-------------------------------------------------------------------------------'
 		echo
 
-		if [ -z "${select_cert_template:+x}" ]; then
+		if [ -z "${CERT_AUTHORITY_HOME:+x}" ]; then
+			echo "\$CERT_AUTHORITY_HOME environment variable must be defined!" >&2
+			exit 1
+		fi
+
+		if [ -z "${template_extension:+x}" ] && [ -z "${select_cert_template:+x}" ]; then
 			select_cert_template template_extension
+			prompt_csr_subject "$template_extension"
 		fi
 
 		create_cert "$template_extension"
