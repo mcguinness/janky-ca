@@ -1,13 +1,13 @@
 'use strict';
 
+require('dotenv').config();
+
 const express = require('express');
 const morgan = require('morgan')
 const url = require('url');
 const app = express();
 const crlUrl = url.parse(process.env.CA_CRL_URL);
 const aiaUrl = url.parse(process.env.CA_AIA_URL);
-
-require('dotenv').config();
 
 if (crlUrl.port !== aiaUrl.port) {
   console.error('CRL and AIA ports must match!');
