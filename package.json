@@ -1,9 +1,10 @@
 {
   "name": "janky-ca",
   "version": "1.0.0",
-  "description": "Simple X.509 Certificate Authority",
+  "description": "Simple X.509 Certificate Authority CRL/AIA Web Server",
   "main": "server.js",
   "scripts": {
+    "server": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

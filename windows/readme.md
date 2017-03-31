@@ -1,9 +1,11 @@
 # [openssl-ca](https://github.com/jankyco/openssl-ca)
 
+> This implementation is deprecated and no longer maintained!
+
 # Overview
 This project provides an out of the box Public Key Infrastructure (PKI) using [openssl](http://openssl.org/).  It is a great alternative to [makecert.exe](http://msdn.microsoft.com/en-US/library/bfsktky3(v=VS.80).aspx) or Microsoft Certificate Services for development environments.  The generated PKI creates a root and intermediate Certificate Authority (CA) that can be used to issue certificates for common scenarios such as SSL/TLS, Client Authentication (e.g. Smart Cards), or Signing/Encryption (e.g. XML dsig).
 
-Using a CA hierarchy to generate certificates simplifies certificate scenarios allowing all computers (clients/servers) to only trust the root certificate for trust chain validation.   Once the root certificate is added to a computer's Trusted Root Certification Authorities store for every computer you effectively have the same capabilities as a full commercial CA such as Verisign.   
+Using a CA hierarchy to generate certificates simplifies certificate scenarios allowing all computers (clients/servers) to only trust the root certificate for trust chain validation.   Once the root certificate is added to a computer's Trusted Root Certification Authorities store for every computer you effectively have the same capabilities as a full commercial CA such as Verisign.
 
 ## Requirements
 - 64-bit Windows Vista+
@@ -13,7 +15,7 @@ OpenSSL was obtained from http://www.slproweb.com/products/Win32OpenSSL.html usi
 _Only openssl.exe, libeay32.dll, ssleay32.dll are required.  These files are not required for runtime, only to generate new certificates._
 
 # Configuration
-Most configuration can be customized by editing the openssl config file [jankyco_openssl.cfg]. 
+Most configuration can be customized by editing the openssl config file [jankyco_openssl.cfg].
 
 It is recommend you change the following default distinguished name (DN) values for certificates
 <pre>
@@ -39,7 +41,7 @@ Issued Certificates are available in the following formats:
 *Note* If you don't assign an export password when generating a certificate, the .pfx will have no protection of the private key.
 
 ## /private
-Private key used to generate a certificate signing request (CSR).  
+Private key used to generate a certificate signing request (CSR).
 
 ## /crl
 Revoked certificates are published to this folder and are available as a Certificate Revocation List.
@@ -68,7 +70,7 @@ set AiaUrl=http://localhost:19840/certs
 </pre>
 
 # Trust CA
-Once the CA is created, you need to trust the CA.  From and Administrator command prompt, run the **TrustRootCerts.bat** file.  This root certificate chain is found in certs\ca_chain.p7b.  
+Once the CA is created, you need to trust the CA.  From and Administrator command prompt, run the **TrustRootCerts.bat** file.  This root certificate chain is found in certs\ca_chain.p7b.
 
 **Note** *This step should be performed on every node in your development environment (client & server).*
 
@@ -77,7 +79,7 @@ Once the CA is created, you need to trust the CA.  From and Administrator comman
 1. Open a command prompt on change path to root of repository
 2. Run *CreateCert.bat*
 
-The Menu will ask you why type of Certificate you want to create.  
+The Menu will ask you why type of Certificate you want to create.
 
 - Client Authentication (Use this for SmartCards or SSL/TLS Clients such as Browsers)
 - Server Authentication (Use this for SSL/TLS Servers)
@@ -85,7 +87,7 @@ The Menu will ask you why type of Certificate you want to create.
 
 ##Client Authentication Templates
 
-These templates are defined in the the openssl config file [jankyco_openssl.cfg]. 
+These templates are defined in the the openssl config file [jankyco_openssl.cfg].
 
 ###All Purpose Client
 - Secure Email EKU
@@ -120,7 +122,7 @@ These templates are defined in the the openssl config file [jankyco_openssl.cfg]
 - Principal Name Subject Alternative Name
 
 ## CRL Server
-By default issued certificates specify a CRL distribution point over HTTP.  If revocation checking is enabled in your environment you need to host the CRL on the specified URL. 
+By default issued certificates specify a CRL distribution point over HTTP.  If revocation checking is enabled in your environment you need to host the CRL on the specified URL.
 
 If you have IISExpress installed, you can run the *CrlServer.bat* to spin up an IIS instance.  Otherwise you need to host the CRLs yourself.
 
