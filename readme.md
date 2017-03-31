@@ -108,3 +108,15 @@ You can also specify a template name as a command-line argument by running `cert
 ## Verify Certificate
 
 `cert_authority.sh --verify file`
+
+### Mutual TLS Test Server
+
+Simple Mutual TLS Web Server
+
+1. Issue a client certificate
+2. Import client certificate into certificate store used by browser
+3. Issue a server certificate
+4. Launch Mutual TLS Web Server with server certificate and CA chain
+   > `node https_test_server.js --cert "${CERT_AUTHORITY_HOME}/certs/{dnshost}.pem" --key "${CERT_AUTHORITY_HOME}/private/{dnshost}.pem" --ca "${CERT_AUTHORITY_HOME}/certs/ca_chain.pem" --mutual`
+5. Visit web page (e.g. `https://{dnshost}:44303`)
+6. Select certificate when prompted
