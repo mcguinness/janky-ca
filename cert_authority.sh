@@ -140,11 +140,17 @@ create_ca() {
     fi
   else
     extension_name="intermediate_extensions"
-    read -p "Add CRL Distribution Point Extension? (Y/N)" -n 1 -r
+
+    read -p "Add CRL Distribution Point Extension ($CA_CRL_URL)? [y/n]: " -n 1 -r
     echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]
-    then
-        extension_name="intermediate_extensions_no_crl"
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+      read -p "Are you sure? The CRL URL must be available or certificate validation may fail! [y/n]: " -n 1 -r
+      echo
+      if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        extension_name="${extension_name}_no_crl"
+      fi
+    else
+      extension_name="${extension_name}_no_crl"
     fi
 
     echo "Generating certificate signing request for new certificate authority..."
@@ -494,13 +500,14 @@ usage() {
 }
 
 main() {
+
   if [ -z "${CERT_AUTHORITY_HOME:+x}" ]; then
     echo "\$CERT_AUTHORITY_HOME environment variable must be defined!" >&2
     exit 1
   fi
 
   if [ ! -d "$CERT_AUTHORITY_HOME" ]; then
-    echo "\$CERT_AUTHORITY_HOME does not resolve to valid path!" >&2
+    echo "\$CERT_AUTHORITY_HOME defines a directory \"${CERT_AUTHORITY_HOME}\" that does not exist!" >&2
     exit 1
   fi
 
